@@ -18,5 +18,8 @@
     "hardhat": "^3.0.9",
     "typescript": "~5.8.0",
     "viem": "^2.38.5"
+  },
+  "dependencies": {
+    "chai": "^6.2.0"
   }
 }
