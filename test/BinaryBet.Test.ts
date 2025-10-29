@@ -3,7 +3,7 @@ import hre from "hardhat"
 import { before } from "node:test"
 import {Address, parseEther} from "viem"
 
-const {viem}:any = hre;
+const {viem, publicClient}:any = hre;
 
 describe('BinaryBet', () => {
   let owner: Address
@@ -30,58 +30,62 @@ describe('BinaryBet', () => {
     );
   });
 
-    
-})
+
+    it("should allow a user to place a bet on WIN", async()=>{
+        const betAmount = parseEther('0.5');
+        const user1InitialBalace = await viem.getBalance({address: user1});
 
 
+        if (user1InitialBalace < betAmount) {
+            throw new Error("Insufficient balance for user1 to place bet");
+        }
+        await contract.write.placeBetWin({
+            account: user1,
+            value: betAmount
+        });
 
-// import { expect } from 'chai';
-// import hre from 'hardhat';
-// import { Address, parseEther } from 'viem';
+        const user1FinalBalance = await viem.getBalance({address: user1});
 
-// // We get necessary Viem clients and addresses from the Hardhat Runtime Environment (hre)
-// const { viem } = hre; 
-
-// describe('BinaryBet', function () {
-//     let owner: Address;
-//     let user1: Address;
-//     let contract: Awaited<ReturnType<typeof viem.deployContract>>;
-
-//     before(async function () {
-//         [owner, user1] = await viem.getAddresses();
+        const user1BetBalance = await contract.read.winBets([user1]);
         
-//         // Deploy the contract once for all tests (use loadFixture later for efficiency)
-//         contract = await viem.deployContract('BinaryBet', [], {
-//             value: parseEther('1.0') // Send 1 ETH as initial liquidity
-//         });
-//     });
+        expect(user1BetBalance).toEqual(betAmount);
+        
+        expect(user1FinalBalance).toEqual(user1InitialBalace - betAmount);
+    });
 
-//     // --- TEST 1: SANITY CHECK ---
-//     it('Should correctly set the deployer as the owner', async function () {
-//         const deployedOwner = await contract.read.owner();
-//         expect(deployedOwner).to.equal(owner);
-//     });
+    // it("should allow the owner to settle the market and distribute winnings", async()=>{
+    //     const ownerInitialBalance = await viem.getBalance({address: owner});
 
-//     // --- TEST 2: FAILURE CHECK ---
-//     it('Should revert if a non-owner tries to settle the market', async function () {
-//         // We expect the contract call to fail (revert) when user1 calls settleMarket
-//         await expect(
-//             contract.write.settleMarket([true], { account: user1 })
-//         ).to.be.rejectedWith("Not the contract owner.");
-//     });
+    //     await contract.write.settleMarket([true],{account: owner});
 
-//     // --- TEST 3: HAPPY PATH ---
-//     it('Should allow a user to place a bet on WIN', async function () {
-//         const betAmount = parseEther('0.5'); // 0.5 ETH
+    //     const ownerFinalBalance = await viem.getBalance({address: owner});
 
-//         // Perform the state-changing action
-//         await contract.write.betWin({
-//             account: user1,
-//             value: betAmount
-//         });
+    //     expect(ownerFinalBalance).toEqual(ownerInitialBalance + parseEther('0.5'));
+    // });
 
-//         // Verify the contract state was updated correctly
-//         const user1BetBalance = await contract.read.winBets([user1]);
-//         expect(user1BetBalance).to.equal(betAmount);
-//     });
-// });
+        it("should allow user to place bet on LOSE", async()=>{
+            const betAmount = parseEther('0.3');
+            const user1InitialBalance = await viem.getBalance({adress: user1});
+            const contractBalance = await viem.getBalance({adress: contract.address})
+            if(user1InitialBalance<betAmount){
+                throw new Error("Insufficient balance for user1 to place bet");
+            }
+
+            const hash = await contract.write.placeBetLose({
+                account: user1,
+                value: betAmount
+            })
+
+            await publicClient.waitForTransactionReceipt({
+                hash
+            });
+
+            const user1FinalBalace = await viem.getBalance({address: user1});
+            const user1BetBalance = await contract.read.loseBets([user1]);
+            const contractFinalBalace = await viem.getBalance({address: contract.address});
+
+            expect(contractFinalBalace).toEqual(contractBalance + betAmount);
+            expect (user1BetBalance).toEqual(betAmount);
+            expect (user1FinalBalace).toEqual(user1InitialBalance - betAmount);
+        })
+})
